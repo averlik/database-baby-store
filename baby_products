@@ -1,0 +1,593 @@
+CREATE DATABASE baby_products;
+\c baby_products
+
+CREATE TABLE countries(
+id_country serial not null primary key,
+country_name text not null);
+
+INSERT INTO countries(country_name)
+VALUES('Russia'),
+('China'),
+('Italy'),
+('England'),
+('USA'),
+('Germany');
+
+CREATE TABLE manufacturers(
+id_manufact serial not null primary key,
+name_m text,
+id_country int references countries(id_country) on delete restrict);
+
+INSERT INTO manufacturers(name_m,id_country)
+VALUES ('manufacturer_1', 6),
+('manufacturer_2',5),
+('manufacturer_3',1),
+('manufacturer_4',2),
+('manufacturer_5',3),
+('manufacturer_6',1),
+('manufacturer_7',2),
+('manufacturer_8',1),
+('manufacturer_9',4),
+('manufacturer_10',2);
+
+
+CREATE TABLE providers(
+id_provider serial not null primary key,
+provider_name text not null,
+id_manufact int references manufacturers(id_manufact) on delete restrict,
+id_country int references countries(id_country) on delete restrict);
+
+INSERT INTO providers(provider_name,id_manufact ,id_country)
+VALUES('Bumi Land',3,1),
+('Igrai-OPT',2,1),
+('ROXY',5,2),
+('Canova',2,3),
+('Errymond',4,3),
+('Big Bеn',7,4),
+('Tony Moly',5,5),
+('Mytoys',3,6);
+
+CREATE TABLE prod_types(
+id_type serial not null primary key,
+type_name text);
+
+INSERT INTO prod_types(type_name)
+VALUES('Furniture'),
+('Clothes'),
+('Shoes'),
+('Toys'),
+('Sport');
+
+CREATE TABLE baby_prod(
+id_product serial not null primary key,
+prod_name text,
+id_type int references prod_types(id_type) on delete restrict,
+id_provider int references providers(id_provider) on delete restrict,
+release_date date,
+price real,
+min_age int
+);
+
+INSERT INTO baby_prod(prod_name,id_type,id_provider,release_date,price,min_age)
+VALUES('Wooden bed',1,1,'2022-02-14',15000.78,0),
+('White bed',1,2,'2022-03-5',34599.35,6),
+('High chairs for feeding',1,7,'2022-09-2',30000,3),
+('Crade',1,5,'2022-10-29',45000,0),
+('Rubber boots',3,6,'2022-08-27',2599,6),
+('Pink slippers',3,7,'2022-06-01',999,3),
+('Teddy Bear',4,6,'2022-04-17',1579.89,6),
+('Huggy Wuggy',4,2,'2022-07-02',2199.69,8),
+('Monopolia',4,8,'2022-12-06',5000,12),
+('Bratz Jade',4,6,'2021-11-10',6799.10,6),
+('LEGO Star Wars',4,7,'2021-05-18',14000,3),
+('Barbie Pink',4,8,'2021-07-19',5499.78,6),
+('Football',5,1,'2021-04-24',3129.69,12),
+('Black Bicycle',5,3,'2021-06-13',35099.12,12),
+('FLower Skates',5,3,'2021-10-10',7000,12),
+('Blue pram',2,5,'2022-04-12',18999.89,0),
+('White pram with stars',2,4,'2022-01-30',25799,0),
+('Green pram',2,1,'2022-08-28',13899.19,3),
+('Weightless pram',2,2,'2022-07-13',16700,6),
+('Purple Sneakers',3,1,'2021-03-01',4500.68,8);
+
+CREATE TABLE sales(
+id_sale serial not null primary key,
+id_product int references baby_prod(id_product) on delete restrict,
+date_of_sale date,
+quantity int);
+
+INSERT INTO sales(id_product, date_of_sale,quantity)
+VALUES(1,'2022-04-01',1),
+(15,'2021-12-12',2),
+(15,'2022-02-15',3),
+(8,'2022-09-01',10),
+(16,'2022-06-13',1),
+(17,'2022-08-30',1),
+(20,'2021-11-10',2),
+(10,'2021-12-19',5),
+(9,'2022-12-25',4),
+(14,'2021-07-22',1),
+(14,'2021-08-01',1),
+(14,'2021-08-07',2),
+(12,'2021-08-29',3),
+(5,'2022-09-02',3),
+(5,'2022-09-07',2);
+
+**************************
+CREATE ROLE operator_role WITH password '123' LOGIN;
+GRANT INSERT, UPDATE, SELECT ON countries, providers, sales,prod_types TO operator_role;
+GRANT USAGE, SELECT ON sales_id_sale_seq,countries_id_country_seq,providers_id_provider_seq ,prod_types_id_type_seq TO operator_role;
+
+CREATE ROLE user_role WITH password '456' LOGIN;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO user_role;
+GRANT INSERT ON ALL TABLES IN SCHEMA public TO user_role;
+GRANT UPDATE ON ALL TABLES IN SCHEMA public TO user_role;
+REVOKE DELETE ON countries, providers, sales FROM user_role;
+
+CREATE ROLE admin_role WITH CREATEDB CREATEROLE password '789' LOGIN;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO admin_role;
+
+***************************
+1.вывод отсортированный по типу детски товаров 
+
+create or replace function baby_prod_type_info() 
+returns table (type_name text, product_name text, release_date date, provider_name text,producing_country text, price real)as $$
+begin
+return query
+select prod_types.type_name, baby_prod.prod_name as product_name, baby_prod.release_date, providers.provider_name, countries.country_name as producing_country , baby_prod.price
+from baby_prod
+join prod_types on baby_prod.id_type = prod_types.id_type
+join providers on baby_prod.id_provider=providers.id_provider
+join countries on providers.id_country=countries.id_country 
+order by prod_types.type_name;
+end $$
+language plpgsql;
+select * from baby_prod_type_info();
+
+
+
+2.вывод для каждого вида детского товара отсортированный
+• по дате выпуска
+
+create or replace function baby_prod_release_date_info() 
+returns table (release_date date, product_name text, type_name text, provider_name text,producing_country text, price real)as $$
+begin
+return query
+select baby_prod.release_date, baby_prod.prod_name as product_name, prod_types.type_name, providers.provider_name, countries.country_name as producing_country , baby_prod.price
+from baby_prod
+join prod_types on baby_prod.id_type = prod_types.id_type
+join providers on baby_prod.id_provider=providers.id_provider
+join countries on providers.id_country=countries.id_country 
+order by baby_prod.release_date;
+end $$
+language plpgsql;
+select * from baby_prod_release_date_info();
+
+• в алфавитном порядке по поставщику,
+
+create or replace function baby_prod_providers_info() 
+returns table (provider_name text,producing_country text, type_name text, product_name text, release_date date, price real)as $$
+begin
+return query
+select providers.provider_name, countries.country_name as producing_country, prod_types.type_name, baby_prod.prod_name as product_name, baby_prod.release_date,  baby_prod.price 
+from baby_prod
+join prod_types on baby_prod.id_type = prod_types.id_type
+join providers on baby_prod.id_provider=providers.id_provider
+join countries on providers.id_country=countries.id_country 
+order by providers.provider_name;
+end $$
+language plpgsql;
+select * from baby_prod_providers_info();
+
+•	по стоимости,
+
+create or replace function baby_prod_price_info() 
+returns table (price real, product_name text, type_name text, provider_name text,producing_country text, release_date date)as $$
+begin
+return query
+select baby_prod.price, baby_prod.prod_name as product_name, prod_types.type_name, providers.provider_name, countries.country_name as producing_country, baby_prod.release_date
+from baby_prod
+join prod_types on baby_prod.id_type = prod_types.id_type
+join providers on baby_prod.id_provider=providers.id_provider
+join countries on providers.id_country=countries.id_country 
+order by providers.provider_name;
+end $$
+language plpgsql;
+select * from baby_prod_price_info();
+
+•	по дате продажи
+
+create or replace function baby_prod_sale_date_info() 
+returns table (date_of_sale date, product_name text, type_name text, price real, provider_name text, producing_country text, release_date date)as $$
+begin
+return query
+from baby_prod
+join sales on baby_prod.id_product=sales.id_product
+join prod_types on baby_prod.id_type = prod_types.id_type
+join providers on baby_prod.id_provider=providers.id_provider
+join countries on providers.id_country=countries.id_country 
+order by sales.date_of_sale;
+end $$
+language plpgsql;
+select * from baby_prod_sale_date_info();
+
+3. Найти самый дорогой детский товар, самый дешевый, среднюю стоимость по каждому виду и в целом.
+
+-самый дорогой товар
+create or replace function the_most_expensive_baby_prod()
+returns table (prod_name text, price real)as $$
+begin
+return query
+select baby_prod.prod_name, baby_prod.price from baby_prod
+where baby_prod.price = (select max(baby_prod.price) from baby_prod);
+end $$ language plpgsql;
+select * from the_most_expensive_baby_prod();
+
+-самый дешевый
+
+create or replace function the_cheapest_baby_prod()
+returns table (prod_name text, price real)as $$
+begin
+return query
+select baby_prod.prod_name, baby_prod.price from baby_prod
+where baby_prod.price = (select min(baby_prod.price) from baby_prod);
+end $$ language plpgsql;
+select * from the_cheapest_baby_prod();
+
+-cредняя стоимость
+
+create or replace function avg_prod_price()
+returns real as $$
+begin
+return (select avg(baby_prod.price) from baby_prod);
+end $$ language plpgsql;
+select * from avg_prod_price();
+
+- средняя стоимость каждого вида
+
+create or replace function avg_types_price() 
+returns table (type_name text, avg_price float)as $$
+begin
+return query 
+select prod_types.type_name as type_name, avg(baby_prod.price)
+from baby_prod join prod_types on baby_prod.id_type = prod_types.id_type
+group by  prod_types.type_name;
+end $$ language plpgsql;
+select * from avg_types_price(); 
+
+4.	Найти детские товары с ценой в заданных пределах (предусмотреть ввод цены с клавиатуры) по каждому виду и в целом.
+
+create function price_between(a real, b real)
+returns table (prod_name text, type_name text, price real) as $$
+BEGIN
+return query 
+select baby_prod.prod_name , prod_types.type_name, baby_prod.price from baby_prod
+join prod_types on baby_prod.id_type=prod_types.id_type 
+where baby_prod.price::numeric::real >= a
+and baby_prod.price::numeric::real <= b;
+END; 
+$$ language plpgsql;
+
+select * from  price_between(15000, 30000); 
+
+-	Найти все детские товары заданного производителя (выбор производителя).
+
+create or replace function manufacturs_products(man text)
+returns setof text as $$
+BEGIN
+return query 
+select baby_prod.prod_name as name_product from baby_prod 
+join providers on baby_prod.id_provider = providers.id_provider
+join manufacturers on  providers.id_manufact = manufacturers.id_manufact
+where manufacturers.name_m =man;
+END; $$ language plpgsql;
+select * from  manufacturs_products('manufacturer_2');
+
+-Найти долю дешевых детских товаров (стоимость меньше заданного, ввод ограничения) от общего числа детских товаров (для каждого возраста (ввод) и в целом).
+
+create or replace function group_cheap_products(pri real)
+returns table ( min_age int, count bigint, part float) 
+as $$
+declare all_count bigint;
+BEGIN
+all_count = (select count(*) from baby_prod);
+return query (select baby_prod.min_age, count (id_product) as count, count(id_product)/all_count::bigint::float as part  
+from baby_prod where baby_prod.price::numeric::int <= pri
+group by baby_prod.min_age
+order by baby_prod.min_age);
+END; $$ language plpgsql;
+select * from  group_cheap_products(10000);
+
+create or replace function group_cheap_products(age int ,pri real)
+returns table ( min_age int, count bigint, part float) 
+as $$
+declare all_count bigint;
+BEGIN
+all_count = (select count(*) from baby_prod);
+return query (select baby_prod.min_age, count (id_product) as count, count(id_product)/all_count::bigint::float as part  
+from baby_prod 
+where baby_prod.price::numeric::int <= pri
+and baby_prod.min_age=age
+group by baby_prod.min_age
+order by baby_prod.min_age);
+END; $$ language plpgsql;
+select * from  group_cheap_products(6, 10000);
+
+create or replace function all_cheap_products(pri real)
+returns table (count bigint, part float) as $$
+declare all_count int;
+BEGIN
+all_count = (select count(*) from baby_prod);
+return query (select count (id_product) as count, count(id_product)/all_count::bigint::float as part  
+from baby_prod where baby_prod.price::numeric::int <= pri);
+END; $$ language plpgsql;
+select * from  all_cheap_products(1500);
+
+
+-Найти все детские товары с заданной датой выпуска (ввод даты).
+
+create or replace function product_by_release_day(a date)
+returns table(prod_name text, r_date date)
+as $$
+begin
+return query select baby_prod.prod_name ,
+baby_prod.release_date from baby_prod
+where baby_prod.release_date=a;
+end;
+$$ language plpgsql;
+select * from product_by_release_day('2022-02-14');
+
+-	Найти все детские товары, чья дата продажи находится в заданных пределах (ввод интервала) для заданного производителя (выбор производителя) и в целом.
+
+create or replace function product_between_sale_days(a date, b date, man text)
+returns table(prod_name text, manufacturer text, r_date date)
+as $$
+begin
+return query select baby_prod.prod_name ,manufacturers.name_m,
+sales.date_of_sale from baby_prod
+join sales on baby_prod.id_product=sales.id_product
+join providers on baby_prod.id_provider=providers.id_provider
+join manufacturers on providers.id_manufact=manufacturers.id_manufact
+where 
+manufacturers.name_m=man
+and sales.date_of_sale>=a
+and sales.date_of_sale<=b
+order by sales.date_of_sale;
+end;
+$$ language plpgsql;
+select * from product_between_sale_days('2021-02-14','2022-12-31','manufacturer_3');
+
+create or replace function product_between_sale_days(a date, b date)
+returns table(prod_name text, manufacturer text, r_date date)
+as $$
+begin
+return query select baby_prod.prod_name ,manufacturers.name_m,
+sales.date_of_sale from baby_prod
+join sales on baby_prod.id_product=sales.id_product
+join providers on baby_prod.id_provider=providers.id_provider
+join manufacturers on providers.id_manufact=manufacturers.id_manufact
+where 
+sales.date_of_sale>=a
+and sales.date_of_sale<=b
+order by sales.date_of_sale;
+end;
+$$ language plpgsql;
+select * from product_between_sale_days('2021-02-14','2022-12-31');
+
+
+-Найти долю детских товаров, проданных за определенный период (ввод периода) от общего времени продажи.
+
+create or replace function part_of_products_sales_days(a date, b date)
+returns table(prod_name text,quantity_product_sales bigint , part float)
+as $$
+declare all_prod int;
+begin
+all_prod = (select sum (sales.quantity) from sales)::bigint::int;
+return query select baby_prod.prod_name, sum (sales.quantity) , sum (sales.quantity)/all_prod::bigint::float from baby_prod 
+join sales on baby_prod.id_product = sales.id_product
+and sales.date_of_sale <= b
+and sales.date_of_sale >= a
+group by baby_prod.prod_name
+order by baby_prod.prod_name ;
+end;
+$$ language plpgsql;
+select * from part_of_products_sales_days('2022-02-14','2022-12-31');
+
+-	Найти долю дешевых игрушек (меньше заданного, ввод ограничения) от общего числа игрушек (для каждого возраста (ввод) и в целом).
+
+create or replace function part_of_cheap_toys(pri real)
+returns table ( min_age int, count_of_toys bigint, part float) 
+as $$
+declare all_count bigint;
+BEGIN
+all_count = (select count(*) from baby_prod where id_type=4);
+return query select baby_prod.min_age, count (id_product), count(id_product)/all_count::bigint::float as part  
+from baby_prod where id_type=4 and baby_prod.price::numeric::int <= pri
+group by baby_prod.min_age
+order by baby_prod.min_age;
+END; $$ language plpgsql;
+
+select * from part_of_cheap_toys(10000);
+
+create or replace function part_of_cheap_toys(age int,pri real)
+returns table ( min_age int, count_of_toys bigint, part float) 
+as $$
+declare all_count bigint;
+BEGIN
+all_count = (select count(*) from baby_prod where id_type=4);
+return query select baby_prod.min_age, count (id_product), count(id_product)/all_count::bigint::float as part  
+from baby_prod 
+where id_type=4 and baby_prod.price::numeric::int <= pri
+and baby_prod.min_age=age
+group by baby_prod.min_age
+order by baby_prod.min_age;
+END; $$ language plpgsql;
+
+select * from part_of_cheap_toys(6, 10000);
+
+create or replace function all_part_of_cheap_toys(pri real)
+returns table ( count_of_toys bigint, part float) 
+as $$
+declare all_count bigint;
+BEGIN
+all_count = (select count(*) from baby_prod where id_type=4);
+return query select count(*), count(*)/all_count::bigint::float as part  
+from baby_prod where id_type=4 and baby_prod.price::numeric::int <= pri;
+END; $$ language plpgsql;
+
+select * from all_part_of_cheap_toys(5000);
+
+- Найти все детские товары, поступившие от заданного поставщика (выбор поставщика), чья стоимость больше, чем средняя стоимость детских товаров, поступивших из заданной страны (выбор страны).
+
+create or replace function provider_of_product_by_name(pr_name text, country text)
+returns table(provider text, prod_name text, price_of_prod real, avg_price_countryprod real)
+as $$
+declare
+avg_ real;
+begin
+avg_=(select avg(baby_prod.price) from baby_prod join providers on baby_prod.id_provider=providers.id_provider
+join countries on providers.id_country=countries.id_country  where countries.country_name=country);
+return query select providers.provider_name, baby_prod.prod_name, baby_prod.price, avg_
+from baby_prod
+join providers on baby_prod.id_provider=providers.id_provider
+where baby_prod.price>=(avg_)
+and providers.provider_name=pr_name
+order by baby_prod.prod_name;
+end;
+$$ language plpgsql;
+
+select * from provider_of_product_by_name('Tony Moly','Russia');
+
+-Найти долю дешевых детских товаров (чья стоимость меньше заданной, ввод стоимости), поступивших от заданного поставщика (выбор поставщика) и в целом.
+
+create or replace function providers_cheap_products(pri real, provider text)
+returns table ( provider_name text, count bigint, part float) 
+as $$
+declare all_count bigint;
+BEGIN
+all_count = (select count(*) from baby_prod join providers on baby_prod.id_provider=providers.id_provider where providers.provider_name=provider);
+return query select providers.provider_name, count(id_product), count(id_product)/all_count::bigint::float
+from baby_prod
+join providers on baby_prod.id_provider=providers.id_provider where providers.provider_name=provider
+and baby_prod.price<pri
+group by providers.provider_name;
+END; $$ language plpgsql;
+select * from  providers_cheap_products(15000,'Tony Moly');
+
+?????????Уже есть такая функция
+create or replace function providers_cheap_products(pri real)
+returns table (count bigint, part float) as $$
+declare all_count int;
+BEGIN
+all_count = (select count(*) from baby_prod);
+return query (select count (id_product) as count, count(id_product)/all_count::bigint::float as part  
+from baby_prod where baby_prod.price::numeric::int <= pri);
+END; $$ language plpgsql;
+select * from  all_cheap_products(1500);
+???????????????????????????????????????????
+
+
+- Найти среднюю стоимость детских товаров, проданных за определенный промежуток времени (ввод интервала).
+
+
+create or replace function avg_price_in_period(a date, b date)
+returns table (avg_price float) as $$
+begin
+return query select avg(baby_prod.price) from baby_prod
+join sales on baby_prod.id_product=sales.id_product
+where sales.date_of_sale>=a
+and sales.date_of_sale<=b;
+end;
+$$ language plpgsql;
+select * from avg_price_in_period('2022-02-14','2022-12-31');
+
+-	Найти все детские товары, чья стоимость выше, чем средняя стоимость детских товаров заданного производителя (выбор производителя).
+
+create or replace function price_of_product_more_than_avg(man text)
+returns table (product_name text, price real, avg_price_of_product real)
+as $$
+declare
+avg_ real;
+begin
+avg_=(select avg(baby_prod.price) from baby_prod
+join providers on baby_prod.id_provider=providers.id_provider
+join manufacturers on providers.id_manufact=manufacturers.id_manufact
+where manufacturers.name_m=man);
+return query select baby_prod.prod_name, baby_prod.price, avg_ 
+from baby_prod 
+where baby_prod.price>avg_;
+end;
+$$ language plpgsql;
+
+select * from price_of_product_more_than_avg('manufacturer_3');
+
+проверка:
+select avg(baby_prod.price) from baby_prod
+join providers on baby_prod.id_provider=providers.id_provider
+join manufacturers on providers.id_manufact=manufacturers.id_manufact
+where manufacturers.name_m=man
+
+-	Найти детские товары, которые лучше всего раскупают, указать параметры (стоимость, производитель, возраст и т.д.).
+
+create or replace function popular_baby_prod(pri real , man text, age int)
+returns table (prod_name text, product_price real, manufacturer_name text, min_age int, sale_quant bigint) as $$
+begin
+return query select baby_prod.prod_name, baby_prod.price, manufacturers.name_m, baby_prod.min_age, (select sum(sales.quantity) from sales where sales.id_product=baby_prod.id_product) from baby_prod
+join providers on baby_prod.id_provider=providers.id_provider
+join manufacturers on providers.id_manufact=manufacturers.id_manufact
+join sales on baby_prod.id_product=sales.id_product
+where
+baby_prod.price=pri 
+and manufacturers.name_m=man
+and baby_prod.min_age=age
+group by baby_prod.id_product, manufacturers.name_m
+order by sale_quant desc limit 3; 
+end; 
+$$ language 'plpgsql';
+
+select * from  popular_baby_prod(5000,'manufacturer_3',12);
+
+create or replace function popular_baby_prod(man text)
+returns table (prod_name text, product_price real, manufacturer_name text, min_age int, sale_quant bigint) as $$
+begin
+return query select baby_prod.prod_name, baby_prod.price, manufacturers.name_m, baby_prod.min_age, (select sum(sales.quantity) from sales where sales.id_product=baby_prod.id_product) from baby_prod
+join providers on baby_prod.id_provider=providers.id_provider
+join manufacturers on providers.id_manufact=manufacturers.id_manufact
+join sales on baby_prod.id_product=sales.id_product
+	where manufacturers.name_m=man
+	group by baby_prod.id_product, manufacturers.name_m
+	order by sale_quant desc limit 3; 
+end; 
+$$ language 'plpgsql';
+
+select * from  popular_baby_prod('manufacturer_3');
+
+create or replace function popular_baby_prod(age int)
+returns table (prod_name text, product_price real, manufacturer_name text, min_age int, sale_quant bigint) as $$
+begin
+return query select baby_prod.prod_name, baby_prod.price, manufacturers.name_m, baby_prod.min_age, (select sum(sales.quantity) from sales where sales.id_product=baby_prod.id_product) from baby_prod
+join providers on baby_prod.id_provider=providers.id_provider
+join manufacturers on providers.id_manufact=manufacturers.id_manufact
+join sales on baby_prod.id_product=sales.id_product
+	where baby_prod.min_age=age
+	group by baby_prod.id_product, manufacturers.name_m
+	order by sale_quant desc limit 3; 
+end; 
+$$ language 'plpgsql';
+
+select * from  popular_baby_prod(12);
+
+create or replace function popular_baby_prod(pri real)
+returns table (prod_name text, product_price real, manufacturer_name text, min_age int, sale_quant bigint) as $$
+begin
+return query select baby_prod.prod_name, baby_prod.price, manufacturers.name_m, baby_prod.min_age, (select sum(sales.quantity) from sales where sales.id_product=baby_prod.id_product) from baby_prod
+join providers on baby_prod.id_provider=providers.id_provider
+join manufacturers on providers.id_manufact=manufacturers.id_manufact
+join sales on baby_prod.id_product=sales.id_product
+	where baby_prod.price=pri
+	group by baby_prod.id_product, manufacturers.name_m
+	order by sale_quant desc limit 3; 
+end; 
+$$ language 'plpgsql';
+
+select * from  popular_baby_prod(5000.0);
