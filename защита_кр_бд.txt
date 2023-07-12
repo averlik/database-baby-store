@@ -1,0 +1,24 @@
+create or replace function zadanie()
+returns table( id_product int, type text, provider_name text, price real, avg_p real)
+as $$
+declare
+avg_ real;
+begin
+avg_=(select avg(baby_prod.price) from baby_prod
+join prod_types on baby_prod.id_type=prod_types.id_type
+join providers on baby_prod.id_provider=providers.id_provider
+join countries on providers.id_country=countries.id_country
+where (prod_types.type_name='Pram' or  prod_types.type_name='Shoes')
+and (countries.country_name='Italy' or countries.country_name='England'));
+return query select baby_prod.id_product, prod_types.type_name, providers.provider_name, baby_prod.price, avg_ 
+from baby_prod 
+join prod_types on baby_prod.id_type=prod_types.id_type
+join providers on baby_prod.id_provider=providers.id_provider
+where (prod_types.type_name='Furniture' or  prod_types.type_name='Toys')
+and (providers.provider_name='Errymond' or providers.provider_name='Big Ben')
+and baby_prod.price>=avg_
+group by baby_prod.id_product, providers.provider_name,prod_types.type_name;
+end; $$ 
+language 'plpgsql';
+
+select *from zadanie();
